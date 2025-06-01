@@ -1,0 +1,41 @@
+# Environment files
+.env
+.env.local
+.env.staging
+.env.production
+
+# Sensitive files
+**/secrets.yml
+**/vault.yml
+**/*_key
+**/*_key.pub
+
+# Ansible files
+*.retry
+.vault_pass
+.ansible_vault_password
+
+# Terraform files (if keeping both)
+*.tfstate
+*.tfstate.backup
+*.tfplan
+.terraform/
+terraform.tfvars
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+.tmp/

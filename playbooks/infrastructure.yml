@@ -1,0 +1,28 @@
+---
+- name: Deploy Hetzner Cloud Infrastructure
+  hosts: infrastructure
+  gather_facts: false
+  roles:
+    - hetzner-infrastructure
+
+  post_tasks:
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "=== {{ environment | default('STAGING') | upper }} ENVIRONMENT DEPLOYMENT COMPLETE ==="
+          - "Environment: {{ environment | default('staging') }}"
+          - "Network: {{ network_name }}"
+          - "Master Server: {{ kubernetes_server.name }}"
+          - "Worker Nodes: {{ worker_nodes | length }}"
+          - "Datacenter: {{ datacenter }}"
+          - ""
+          - "🎉 SUCCESS! Your infrastructure is ready!"
+          - ""
+          - "📋 Server Details:"
+          - "Master: {{ kubernetes_server.name }} - SSH: ssh root@<master-ip>"
+          - "Workers: {{ worker_nodes | length }} nodes ready"
+          - ""
+          - "🚀 Next Steps:"
+          - "1. Test SSH access to your servers"
+          - "2. Run: ./scripts/post-deploy.sh staging"
+          - "3. Start Kubernetes installation"

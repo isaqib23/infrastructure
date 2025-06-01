@@ -1,0 +1,49 @@
+---
+# Staging Environment Configuration
+environment: staging
+environment_prefix: "stg"
+
+# Hetzner Cloud Configuration
+hcloud_api_token: "{{ lookup('env', 'HCLOUD_API_TOKEN_STAGING') }}"
+
+# Team SSH Keys - Add your team members' SSH keys here
+team_ssh_keys:
+  - name: "{{ environment_prefix }}-saqib-rao"
+    public_key: "{{ lookup('env', 'SSH_PUBLIC_KEY_RAO') }}"
+  - name: "{{ environment_prefix }}-team-devops"
+    public_key: "{{ lookup('env', 'SSH_PUBLIC_KEY_SP') }}"
+
+# SSH Key names for server assignment
+ssh_key_names: "{{ team_ssh_keys | map(attribute='name') | list }}"
+
+# Infrastructure Configuration
+datacenter: "hel1-dc2"
+network_name: "{{ environment_prefix }}-kubernetes-network"
+network_ip_range: "172.16.0.0/24"
+network_zone: "eu-central"
+
+# Server Configuration - Smaller sizes for staging
+kubernetes_server:
+  name: "{{ environment_prefix }}-kubernetes-server"
+  image: "ubuntu-24.04"
+  server_type: "cax21"  # Smaller for staging
+  private_ip: "172.16.0.100"
+
+worker_nodes:
+  - name: "{{ environment_prefix }}-kube-node-1"
+    private_ip: "172.16.0.101"
+  - name: "{{ environment_prefix }}-kube-node-2"
+    private_ip: "172.16.0.102"
+  - name: "{{ environment_prefix }}-kube-node-3"
+    private_ip: "172.16.0.103"
+
+worker_node_config:
+  image: "ubuntu-24.04"
+  server_type: "cax11"  # Smaller for staging
+  count: 3  # nodes for staging
+
+# Tagging
+common_labels:
+  environment: "{{ environment }}"
+  managed_by: "ansible"
+  project: "kubernetes-cluster"

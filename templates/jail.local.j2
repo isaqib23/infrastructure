@@ -1,0 +1,14 @@
+[DEFAULT]
+# Ban settings
+bantime = 1h
+findtime = 10m
+maxretry = 5
+
+# SSH jail configuration
+[sshd]
+enabled = true
+port = {{ ssh_port | default(22) }}
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 1h

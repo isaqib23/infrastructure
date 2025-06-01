@@ -1,0 +1,191 @@
+---
+- name: Post-Deployment Server Configuration
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    # Common packages to install
+    common_packages:
+      - curl
+      - wget
+      - git
+      - htop
+      - vim
+      - unzip
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - software-properties-common
+
+    # Security settings
+    ssh_port: 22
+    disable_root_password: true
+
+  tasks:
+    - name: Wait for servers to be ready
+      wait_for_connection:
+        timeout: 300
+        delay: 10
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+      register: upgrade_result
+
+    - name: Install common packages
+      apt:
+        name: "{{ common_packages }}"
+        state: present
+
+    - name: Configure timezone
+      timezone:
+        name: "{{ server_timezone | default('UTC') }}"
+
+    - name: Set hostname based on server name
+      hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Update /etc/hosts with hostname
+      lineinfile:
+        path: /etc/hosts
+        line: "127.0.1.1 {{ inventory_hostname }}"
+        regexp: "^127.0.1.1"
+
+    - name: Configure SSH security
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        backup: yes
+      loop:
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin yes' }
+        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+        - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+        - { regexp: '^#?Port', line: 'Port {{ ssh_port }}' }
+      notify: restart ssh
+
+    - name: Install fail2ban for security
+      apt:
+        name: fail2ban
+        state: present
+
+    - name: Configure fail2ban for SSH
+      template:
+        src: "{{ playbook_dir }}/../templates/jail.local.j2"
+        dest: /etc/fail2ban/jail.local
+        backup: yes
+      notify: restart fail2ban
+
+    - name: Start and enable fail2ban
+      systemd:
+        name: fail2ban
+        state: started
+        enabled: yes
+
+    - name: Configure automatic security updates
+      apt:
+        name: unattended-upgrades
+        state: present
+
+    - name: Configure unattended-upgrades
+      template:
+        src: "{{ playbook_dir }}/../templates/50unattended-upgrades.j2"
+        dest: /etc/apt/apt.conf.d/50unattended-upgrades
+        backup: yes
+
+    - name: Enable automatic updates
+      lineinfile:
+        path: /etc/apt/apt.conf.d/20auto-upgrades
+        line: "{{ item }}"
+        create: yes
+      loop:
+        - 'APT::Periodic::Update-Package-Lists "1";'
+        - 'APT::Periodic::Unattended-Upgrade "1";'
+
+    - name: Create swap file if not exists (for smaller instances)
+      block:
+        - name: Check if swap exists
+          command: swapon --show
+          register: swap_status
+          failed_when: false
+          changed_when: false
+
+        - name: Create swap file
+          command: "{{ item }}"
+          loop:
+            - "fallocate -l 2G /swapfile"
+            - "chmod 600 /swapfile"
+            - "mkswap /swapfile"
+            - "swapon /swapfile"
+          when: swap_status.stdout == ""
+
+        - name: Add swap to fstab
+          lineinfile:
+            path: /etc/fstab
+            line: "/swapfile none swap sw 0 0"
+          when: swap_status.stdout == ""
+      when: ansible_memory_mb.real.total < 4096  # Only for instances with less than 4GB RAM
+
+    - name: Install Docker (preparation for Kubernetes)
+      block:
+        - name: Add Docker GPG key
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
+
+        - name: Add Docker repository
+          apt_repository:
+            repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+            state: present
+
+        - name: Install Docker
+          apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+            state: present
+
+        - name: Start and enable Docker
+          systemd:
+            name: docker
+            state: started
+            enabled: yes
+
+        - name: Add ubuntu user to docker group (if exists)
+          user:
+            name: ubuntu
+            groups: docker
+            append: yes
+          ignore_errors: yes
+
+    - name: Display server information
+      debug:
+        msg:
+          - "=== {{ inventory_hostname }} POST-DEPLOYMENT COMPLETE ==="
+          - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel: {{ ansible_kernel }}"
+          - "Memory: {{ ansible_memory_mb.real.total }}MB"
+          - "CPU: {{ ansible_processor_vcpus }} vCPUs"
+          - "Docker: Installed and running"
+          - "Security: fail2ban enabled, SSH hardened"
+          - "Updates: Automatic security updates enabled"
+
+  handlers:
+    - name: restart ssh
+      systemd:
+        name: ssh
+        state: restarted
+
+    - name: restart fail2ban
+      systemd:
+        name: fail2ban
+        state: restarted

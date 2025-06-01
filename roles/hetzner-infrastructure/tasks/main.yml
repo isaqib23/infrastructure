@@ -1,0 +1,34 @@
+---
+- name: Validate required variables
+  assert:
+    that:
+      - hcloud_api_token is defined and hcloud_api_token != ""
+      - team_ssh_keys is defined and team_ssh_keys | length > 0
+      - environment is defined
+    fail_msg: "Required variables are missing. Check your environment configuration."
+
+- name: Validate team SSH keys
+  assert:
+    that:
+      - item.name is defined and item.name != ""
+      - item.public_key is defined and item.public_key != ""
+    fail_msg: "SSH key configuration is invalid for {{ item.name | default('unknown') }}"
+  loop: "{{ team_ssh_keys }}"
+  when: item.public_key is defined and item.public_key != ""
+
+- name: Create SSH keys
+  include_tasks: ssh-keys.yml
+
+- name: Create network infrastructure
+  include_tasks: network.yml
+
+- name: Create servers
+  include_tasks: servers.yml
+
+- name: Set infrastructure results fact
+  set_fact:
+    infrastructure_results:
+      ssh_keys: "{{ ssh_keys_result }}"
+      network: "{{ network_result }}"
+      kubernetes_server: "{{ kubernetes_server_result }}"
+      worker_nodes: "{{ worker_nodes_result }}"

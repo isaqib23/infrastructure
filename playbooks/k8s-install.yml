@@ -1,0 +1,34 @@
+---
+- name: Post-install Kubernetes configuration
+  hosts: kube_control_plane[0]
+  gather_facts: no
+  vars:
+    hetzner_token: "{{ lookup('env', 'HCLOUD_TOKEN') }}"
+    network_name: "kubernetes-node-network"
+
+  tasks:
+    - name: Create Hetzner Cloud secret
+      kubernetes.core.k8s:
+        definition: "{{ lookup('template', '../templates/k8s/hcloud-secret.yml.j2') | from_yaml_all | list }}"
+        kubeconfig: /etc/kubernetes/admin.conf
+      run_once: true
+
+    - name: Wait for all nodes to be ready
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Node
+        kubeconfig: /etc/kubernetes/admin.conf
+      register: nodes
+      until: nodes.resources | selectattr('status.conditions', 'defined') |
+        selectattr('status.conditions', 'selectattr', 'type', 'equalto', 'Ready') |
+        selectattr('status.conditions', 'selectattr', 'status', 'equalto', 'True') |
+        list | length == (groups['k8s_cluster'] | length)
+      retries: 30
+      delay: 10
+
+    - name: Display cluster information
+      debug:
+        msg: |
+          Kubernetes cluster is ready!
+          Nodes: {{ nodes.resources | length }}
+          Environment: {{ environment }}

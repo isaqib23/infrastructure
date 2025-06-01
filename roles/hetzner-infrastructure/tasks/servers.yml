@@ -1,0 +1,59 @@
+---
+- name: Create Kubernetes master server for {{ environment | default('unknown') }}
+  hetzner.hcloud.server:
+    api_token: "{{ hcloud_api_token }}"
+    name: "{{ kubernetes_server.name }}"
+    image: "{{ kubernetes_server.image }}"
+    server_type: "{{ kubernetes_server.server_type }}"
+    datacenter: "{{ datacenter }}"
+    ssh_keys: "{{ ssh_key_names }}"
+    enable_ipv4: true
+    enable_ipv6: false
+    state: present
+  register: kubernetes_server_result
+
+- name: Attach master server to private network
+  hetzner.hcloud.server_network:
+    api_token: "{{ hcloud_api_token }}"
+    network: "{{ network_name }}"
+    server: "{{ kubernetes_server.name }}"
+    ip: "{{ kubernetes_server.private_ip }}"
+    state: present
+
+- name: Create Kubernetes worker nodes for {{ environment | default('unknown') }}
+  hetzner.hcloud.server:
+    api_token: "{{ hcloud_api_token }}"
+    name: "{{ item.name }}"
+    image: "{{ worker_node_config.image }}"
+    server_type: "{{ worker_node_config.server_type }}"
+    datacenter: "{{ datacenter }}"
+    ssh_keys: "{{ ssh_key_names }}"
+    enable_ipv4: true
+    enable_ipv6: false
+    state: present
+  loop: "{{ worker_nodes }}"
+  register: worker_nodes_result
+
+- name: Attach worker nodes to private network
+  hetzner.hcloud.server_network:
+    api_token: "{{ hcloud_api_token }}"
+    network: "{{ network_name }}"
+    server: "{{ item.name }}"
+    ip: "{{ item.private_ip }}"
+    state: present
+  loop: "{{ worker_nodes }}"
+
+- name: Display server information
+  debug:
+    msg:
+      - "=== SERVERS CREATED FOR {{ environment | default('unknown') | upper }} ==="
+      - "Master: {{ kubernetes_server_result.hcloud_server.name }} ({{ kubernetes_server_result.hcloud_server.ipv4_address }})"
+      - "Workers:"
+
+- name: Display worker node information
+  debug:
+    msg:
+      - "  - {{ item.hcloud_server.name }}: {{ item.hcloud_server.ipv4_address }}"
+  loop: "{{ worker_nodes_result.results }}"
+  loop_control:
+    label: "{{ item.hcloud_server.name }}"

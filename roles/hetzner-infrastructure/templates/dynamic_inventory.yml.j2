@@ -1,0 +1,27 @@
+---
+# Dynamically generated inventory for {{ environment | default('staging') }} environment
+
+all:
+  children:
+    kubernetes_masters:
+      hosts:
+        {{ kubernetes_server_result.hcloud_server.name }}:
+          ansible_host: {{ kubernetes_server_result.hcloud_server.ipv4_address }}
+          private_ip: {{ kubernetes_server.private_ip }}
+          server_type: {{ kubernetes_server_result.hcloud_server.server_type }}
+          ansible_user: root
+
+    kubernetes_workers:
+      hosts:
+{% for worker in worker_nodes_result.results %}
+        {{ worker.hcloud_server.name }}:
+          ansible_host: {{ worker.hcloud_server.ipv4_address }}
+          private_ip: {{ worker.item.private_ip }}
+          server_type: {{ worker.hcloud_server.server_type }}
+          ansible_user: root
+{% endfor %}
+
+  vars:
+    environment: {{ environment | default('staging') }}
+    network_name: {{ network_name }}
+    datacenter: {{ datacenter }}

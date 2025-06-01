@@ -1,0 +1,24 @@
+---
+# Default configuration for Hetzner Infrastructure Role
+# These can be overridden in group_vars or host_vars
+
+# Default server configuration
+default_image: "ubuntu-24.04"
+default_datacenter: "hel1-dc2"
+default_network_zone: "eu-central"
+
+# Default networking
+default_network_ip_range: "172.16.0.0/24"
+default_master_ip: "172.16.0.100"
+
+# Default server types (can be overridden per environment)
+default_master_server_type: "cax21"
+default_worker_server_type: "cx21"
+
+# Default labels that will be applied to all resources
+default_labels:
+  managed_by: "ansible"
+  project: "kubernetes-cluster"
+
+# Cleanup settings
+cleanup_ssh_key: true  # Set to false if you want to keep SSH keys during cleanup

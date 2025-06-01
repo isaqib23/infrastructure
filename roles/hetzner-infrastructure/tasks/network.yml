@@ -1,0 +1,25 @@
+---
+- name: Create private network for {{ environment | default('unknown') }}
+  hetzner.hcloud.network:
+    api_token: "{{ hcloud_api_token }}"
+    name: "{{ network_name }}"
+    ip_range: "{{ network_ip_range }}"
+    state: present
+  register: network_result
+
+- name: Create network subnet for {{ environment | default('unknown') }}
+  hetzner.hcloud.subnetwork:
+    api_token: "{{ hcloud_api_token }}"
+    network: "{{ network_name }}"
+    ip_range: "{{ network_ip_range }}"
+    type: cloud
+    network_zone: "{{ network_zone }}"
+    state: present
+  register: subnet_result
+
+- name: Display network information
+  debug:
+    msg:
+      - "Network '{{ network_result.hcloud_network.name }}' created/updated"
+      - "IP Range: {{ network_result.hcloud_network.ip_range }}"
+      - "Subnet created in zone: {{ network_zone }}"

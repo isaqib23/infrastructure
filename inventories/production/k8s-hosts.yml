@@ -1,0 +1,41 @@
+all:
+  hosts:
+    prod-master-1:
+      ansible_host: 172.16.0.201
+      ip: 172.16.0.201
+      access_ip: 172.16.0.201
+      ansible_user: root
+    prod-worker-1:
+      ansible_host: 172.16.0.202
+      ip: 172.16.0.202
+      access_ip: 172.16.0.202
+      ansible_user: root
+    prod-worker-2:
+      ansible_host: 172.16.0.203
+      ip: 172.16.0.203
+      access_ip: 172.16.0.203
+      ansible_user: root
+    prod-worker-3:
+      ansible_host: 172.16.0.204
+      ip: 172.16.0.204
+      access_ip: 172.16.0.204
+      ansible_user: root
+  children:
+    kube_control_plane:
+      hosts:
+        prod-master-1:
+    kube_node:
+      hosts:
+        prod-master-1:
+        prod-worker-1:
+        prod-worker-2:
+        prod-worker-3:
+    etcd:
+      hosts:
+        prod-master-1:
+    k8s_cluster:
+      children:
+        kube_control_plane:
+        kube_node:
+    calico_rr:
+      hosts: {}

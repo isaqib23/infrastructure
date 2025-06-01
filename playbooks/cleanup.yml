@@ -1,0 +1,59 @@
+---
+- name: Cleanup Hetzner Cloud Infrastructure
+  hosts: infrastructure
+  gather_facts: false
+  vars:
+    # Use deploy_environment instead of environment to avoid Ansible reserved variable conflict
+    environment: "{{ deploy_environment | default('staging') }}"
+    # Use the passed API token or try to get from environment
+    hcloud_api_token: "{{ hcloud_api_token | default(lookup('env', 'HCLOUD_API_TOKEN_' + (deploy_environment | default('staging') | upper))) }}"
+
+  tasks:
+    - name: Validate cleanup environment
+      assert:
+        that:
+          - deploy_environment is defined
+          - deploy_environment in ['staging', 'production']
+          - hcloud_api_token is defined and hcloud_api_token != ""
+        fail_msg: "Invalid environment '{{ deploy_environment | default('undefined') }}' or missing API token"
+
+    - name: Get list of servers to delete
+      set_fact:
+        servers_to_delete: "{{ [kubernetes_server.name] + (worker_nodes | map(attribute='name') | list) }}"
+
+    - name: Display servers that will be deleted
+      debug:
+        msg: "Will delete the following servers: {{ servers_to_delete }}"
+
+    - name: Delete servers
+      hetzner.hcloud.server:
+        api_token: "{{ hcloud_api_token }}"
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ servers_to_delete }}"
+      ignore_errors: true
+
+    - name: Wait for servers to be deleted
+      pause:
+        seconds: 30
+        prompt: "Waiting for servers to be fully deleted before removing network..."
+
+    - name: Delete private network
+      hetzner.hcloud.network:
+        api_token: "{{ hcloud_api_token }}"
+        name: "{{ network_name }}"
+        state: absent
+      ignore_errors: true
+
+    - name: Delete team SSH keys (optional)
+      hetzner.hcloud.ssh_key:
+        api_token: "{{ hcloud_api_token }}"
+        name: "{{ item.name }}"
+        state: absent
+      loop: "{{ team_ssh_keys }}"
+      ignore_errors: true
+      when: cleanup_ssh_key | default(true) | bool
+
+    - name: Cleanup complete
+      debug:
+        msg: "{{ deploy_environment | default('staging') | title }} environment cleanup completed successfully"
